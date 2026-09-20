@@ -1296,8 +1296,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let parsedResult = null;
       let lastError = null;
-      // Verified active vision models
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      // Google Gemini active vision models in priority order
+      const modelsToTry = [
+        'gemini-3.6-flash',
+        'gemini-3.7-flash',
+        'gemini-3.8-flash',
+        'gemini-3.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-2.5-flash'
+      ];
 
       for (const model of modelsToTry) {
         try {
