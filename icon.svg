@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#1e3a8a" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <!-- Background Card -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#grad)" filter="url(#shadow)" />
+  <!-- Inner Document Outline -->
+  <rect x="116" y="100" width="280" height="312" rx="28" fill="#ffffff" opacity="0.95" />
+  <!-- Scanner Beam Accent -->
+  <line x1="80" y1="240" x2="432" y2="240" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" opacity="0.9" />
+  <!-- Text Lines inside Document -->
+  <rect x="160" y="155" width="192" height="18" rx="9" fill="#1e293b" />
+  <rect x="160" y="195" width="140" height="18" rx="9" fill="#3b82f6" />
+  <rect x="160" y="280" width="192" height="18" rx="9" fill="#64748b" />
+  <rect x="160" y="320" width="120" height="18" rx="9" fill="#64748b" />
+  <!-- Optical Scan Corner Accents -->
+  <path d="M 80 140 L 80 80 L 140 80" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+  <path d="M 432 140 L 432 80 L 372 80" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+  <path d="M 80 372 L 80 432 L 140 432" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+  <path d="M 432 372 L 432 432 L 372 432" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+</svg>

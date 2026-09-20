@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>مستخرج النصوص الذكي | Pro OCR Extractor</title>
+  
+  <!-- PWA & Mobile Meta Tags -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pro OCR">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M4 5v14h16V5H4zm2 2h12v10H6V7zm2 2v2h8V9H8zm0 4v2h5v-2H8z'/></svg>">
+  
+  <!-- Google Fonts: Cairo & Tajawal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Tesseract.js v5 (WebAssembly Client-Side OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased transition-colors duration-200">
+
+  <!-- Floating Toast Notification Container -->
+  <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Header -->
+  <header class="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white text-lg">
+          <i class="fa-solid fa-file-waveform"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+              مستخرج النصوص الذكي
+            </h1>
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              Pro OCR v2
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">استخراج وقراءة النصوص من أي صورة مجاناً وبأعلى دقة</p>
+        </div>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Install PWA Button (Hidden by default until install event triggers) -->
+        <button id="btn-install-pwa" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all">
+          <i class="fa-solid fa-download"></i>
+          <span>تثبيت كتطبيق</span>
+        </button>
+
+        <!-- GitHub Info / Help Modal Trigger -->
+        <button id="btn-help-modal" title="تعليمات ومساعدة" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors border border-slate-700">
+          <i class="fa-solid fa-circle-question"></i>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="btn-theme-toggle" title="تبديل الوضع الليلي / النهاري" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 flex items-center justify-center transition-colors border border-slate-700">
+          <i id="theme-icon" class="fa-solid fa-moon"></i>
+        </button>
+
+        <!-- Reset All Button -->
+        <button id="btn-reset-all" title="إفراغ والبدء من جديد" class="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold transition-colors border border-red-500/20 flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span class="hidden sm:inline">إعادة ضبط</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    
+    <!-- Mobile Warning & Tip Banner -->
+    <div class="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-900/30 via-indigo-900/20 to-purple-900/30 border border-blue-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs sm:text-sm text-blue-200">
+      <div class="flex items-center gap-3">
+        <span class="p-2 rounded-lg bg-blue-500/20 text-blue-400 text-base">
+          <i class="fa-solid fa-shield-halved"></i>
+        </span>
+        <div>
+          <strong class="font-bold text-white block">خصوصية وأمان 100%:</strong>
+          تتم معالجة وقراءة الصور محلياً داخل جهازك دون رفع أي صورة إلى أي خادم خارجي.
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-slate-400 self-end sm:self-center">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>جاهز للعمل دون إنترنت (Offline)</span>
+      </div>
+    </div>
+
+    <!-- Top-Level Prominent 12-Digit Number Box (صندوق الرقم المكون من 12 رقماً في أعلى الصفحة) -->
+    <div id="digit12-container" class="hidden mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-600/20 border-2 border-amber-500/60 shadow-2xl shadow-amber-500/15 space-y-3 transition-all">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-amber-500/30 text-amber-300 flex items-center justify-center text-base border border-amber-500/40 shadow-inner">
+            <i class="fa-solid fa-id-card"></i>
+          </span>
+          <div>
+            <h2 class="text-sm sm:text-base font-black text-amber-300">
+              الرقم المكتشف من الصورة (المكون من 12 رقماً)
+            </h2>
+            <p class="text-[11px] text-amber-200/80 hidden sm:block">تم استخراجه تلقائياً وفورياً، جاهز للنسخ بنقرة واحدة</p>
+          </div>
+        </div>
+        <span id="digit12-count-badge" class="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-500/25 text-amber-200 border border-amber-500/40">
+          تم العثور على 1 رقم
+        </span>
+      </div>
+
+      <div id="digit12-list" class="space-y-2.5">
+        <!-- Dynamically populated 12-digit number cards -->
+      </div>
+    </div>
+
+    <!-- Main Grid: Two columns on desktop, stacked on mobile -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Right Column: Image Input & OCR Configuration (7 cols) -->
+      <section class="lg:col-span-6 flex flex-col gap-5">
+
+        <!-- Card: Image Input Methods -->
+        <div class="bg-slate-850/80 rounded-2xl border border-slate-800 p-5 shadow-xl backdrop-blur-sm">
+          
+          <!-- Section Title -->
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-image text-blue-400"></i>
+              <span>1. تحديد أو استيراد الصورة</span>
+            </h2>
+            <span class="text-xs text-slate-400">يدعم PNG, JPG, WEBP, BMP</span>
+          </div>
+
+          <!-- Drag and Drop Area -->
+          <div id="drop-zone" class="relative group border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 bg-slate-900/50 hover:bg-blue-500/5">
+            
+            <input type="file" id="file-input" accept="image/*" class="hidden">
+            <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden">
+
+            <!-- Empty State Display -->
+            <div id="drop-zone-empty" class="flex flex-col items-center justify-center gap-3 py-4">
+              <div class="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-400 group-hover:scale-110 flex items-center justify-center text-3xl transition-transform duration-300 border border-blue-500/20 shadow-inner">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <div class="space-y-1">
+                <p class="text-sm font-semibold text-slate-200">
+                  اسحب وأفلت صورتك هنا، أو <span class="text-blue-400 underline underline-offset-4">تصفح جهازك</span>
+                </p>
+                <p class="text-xs text-slate-400">
+                  أو الصق مباشرة بالضغط على <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-[11px] text-slate-300">Ctrl + V</kbd> (لقطة شاشة)
+                </p>
+              </div>
+            </div>
+
+            <!-- Action Buttons Inside Drop Zone -->
+            <div class="flex flex-wrap items-center justify-center gap-2.5 mt-3 pt-3 border-t border-slate-800/80">
+              <!-- Browse File -->
+              <button type="button" id="btn-trigger-browse" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/20 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-folder-open"></i>
+                <span>اختيار ملف</span>
+              </button>
+
+              <!-- Camera Button (Especially great on mobile) -->
+              <button type="button" id="btn-trigger-camera" class="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-600/20 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-camera"></i>
+                <span>التقاط بالكاميرا</span>
+              </button>
+
+              <!-- Sample Demo Image -->
+              <button type="button" id="btn-load-sample" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-vial"></i>
+                <span>تجربة صورة نموذجية</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- Image Preview & Pre-processing Section (Visible after image is loaded) -->
+          <div id="preview-section" class="hidden mt-4 space-y-3">
+            <div class="flex items-center justify-between text-xs text-slate-400">
+              <span class="font-medium text-slate-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-eye text-cyan-400"></i> معاينة الصورة وأدوات التحسين
+              </span>
+              <span id="image-meta" class="font-mono">-- x -- px</span>
+            </div>
+
+            <!-- Image Canvas Display -->
+            <div class="relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center max-h-[340px] p-2">
+              <canvas id="image-canvas" class="max-w-full max-h-[320px] object-contain rounded shadow-lg"></canvas>
+            </div>
+
+            <!-- Pre-processing Filters Toolbar (Increases OCR accuracy) -->
+            <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                  فلاتر تنقية الصورة (تساعد في رفع دقة القراءة):
+                </span>
+                <button id="btn-reset-filters" class="text-[11px] text-slate-400 hover:text-white transition-colors underline">
+                  إعادة ضبط الفلاتر
+                </button>
+              </div>
+
+              <!-- Filter Toggles -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button type="button" id="filter-grayscale" class="filter-btn px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                  <i class="fa-solid fa-circle-half-stroke"></i>
+                  <span>رمادي</span>
+                </button>
+
+                <button type="button" id="filter-threshold" class="filter-btn px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                  <i class="fa-solid fa-highlighter"></i>
+                  <span>عزل النص</span>
+                </button>
+
+                <button type="button" id="filter-invert" class="filter-btn px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                  <i class="fa-solid fa-circle-notch"></i>
+                  <span>عكس الألوان</span>
+                </button>
+
+                <button type="button" id="filter-rotate" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                  <i class="fa-solid fa-rotate-right"></i>
+                  <span>تدوير 90°</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Card: OCR Engine Settings & Run Button -->
+        <div class="bg-slate-850/80 rounded-2xl border border-slate-800 p-5 shadow-xl backdrop-blur-sm space-y-4">
+          
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-blue-400"></i>
+            <span>2. إعدادات محرك الاستخراج (OCR)</span>
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Language Select -->
+            <div class="space-y-1.5">
+              <label for="ocr-language" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-language text-indigo-400"></i>
+                لغة النص في الصورة:
+              </label>
+              <select id="ocr-language" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="eng" selected>🇬🇧 اللغة الإنجليزية (English - افتراضي)</option>
+                <option value="ara">🇸🇦 اللغة العربية (Arabic)</option>
+                <option value="ara+eng">🇸🇦+🇬🇧 عربية + إنجليزية معاً (Arabic + English)</option>
+                <option value="fra">🇫🇷 اللغة الفرنسية (French)</option>
+                <option value="deu">🇩🇪 اللغة الألمانية (German)</option>
+                <option value="spa">🇪🇸 اللغة الإسبانية (Spanish)</option>
+                <option value="tur">🇹🇷 اللغة التركية (Turkish)</option>
+              </select>
+            </div>
+
+            <!-- Recognition Mode -->
+            <div class="space-y-1.5">
+              <label for="ocr-psm" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-align-left text-cyan-400"></i>
+                نمط تخطيط الصفحة:
+              </label>
+              <select id="ocr-psm" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="3" selected>تلقائي متعدد الأسطر (افتراضي)</option>
+                <option value="6">كتلة نصية موحدة متجانسة</option>
+                <option value="7">سطر نصي واحد فقط</option>
+                <option value="11">البحث عن أقصى قدر من النصوص المبعثرة</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Primary Start Button -->
+          <button type="button" id="btn-start-ocr" disabled class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2.5">
+            <i class="fa-solid fa-bolt"></i>
+            <span>ابدأ استخراج النص الآن</span>
+          </button>
+
+          <!-- Progress Bar & Status (Visible during processing) -->
+          <div id="ocr-progress-card" class="hidden p-4 rounded-xl bg-slate-900/90 border border-blue-500/30 space-y-3">
+            <div class="flex items-center justify-between text-xs">
+              <span id="ocr-status-text" class="text-blue-300 font-medium flex items-center gap-2">
+                <i class="fa-solid fa-spinner fa-spin text-blue-400"></i>
+                <span>جارٍ المعالجة...</span>
+              </span>
+              <span id="ocr-progress-percent" class="font-mono font-bold text-white">0%</span>
+            </div>
+
+            <!-- Bar Track -->
+            <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+              <div id="ocr-progress-bar" class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300 rounded-full" style="width: 0%"></div>
+            </div>
+
+            <p id="ocr-sub-status" class="text-[11px] text-slate-400 truncate text-left dir-ltr">
+              Initializing OCR engine...
+            </p>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- Left Column: Results, Editing & Export Tools (5 cols) -->
+      <section class="lg:col-span-6 flex flex-col gap-5">
+
+        <!-- Card: Extracted Text Workspace -->
+        <div class="bg-slate-850/80 rounded-2xl border border-slate-800 p-5 shadow-xl backdrop-blur-sm flex flex-col h-full">
+          
+          <!-- Header of Results -->
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-square-poll-horizontal text-emerald-400"></i>
+                <span>3. النص المستخرج</span>
+              </h2>
+              <!-- Confidence badge -->
+              <span id="confidence-badge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                الدقة: --%
+              </span>
+            </div>
+
+            <!-- Text Stats -->
+            <div class="flex items-center gap-3 text-xs text-slate-400 font-mono">
+              <span id="stat-words">0 كلمة</span>
+              <span>•</span>
+              <span id="stat-chars">0 حرف</span>
+            </div>
+          </div>
+
+          <!-- Text Action Toolbar -->
+          <div class="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800 mb-3">
+            
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <!-- Copy Button -->
+              <button type="button" id="btn-copy-text" title="نسخ إلى الحافظة" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all flex items-center gap-1.5">
+                <i class="fa-regular fa-copy"></i>
+                <span>نسخ</span>
+              </button>
+
+              <!-- Text-to-Speech (Listen) -->
+              <button type="button" id="btn-speak-text" title="قراءة النص صوتياً" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-volume-high"></i>
+                <span>استماع</span>
+              </button>
+
+              <!-- Clean Text -->
+              <button type="button" id="btn-clean-text" title="إزالة الفراغات والأسطر الزائدة" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-broom"></i>
+                <span>تنظيف</span>
+              </button>
+
+              <!-- Direction Switch -->
+              <button type="button" id="btn-toggle-dir" title="تبديل اتجاه النص RTL / LTR" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono border border-slate-700 transition-all">
+                RTL / LTR
+              </button>
+            </div>
+
+            <!-- Clear Text -->
+            <button type="button" id="btn-clear-text" title="مسح النص" class="px-2 py-1 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 text-xs transition-colors">
+              <i class="fa-regular fa-trash-can"></i>
+            </button>
+
+          </div>
+
+          <!-- Editable Text Area -->
+          <div class="relative flex-1 min-h-[280px]">
+            <textarea id="result-text" dir="rtl" placeholder="سيظهر النص المستخرج هنا فور انتهاء المعالجة، كما يمكنك تعديله أو الإضافة عليه بحرية..." class="w-full h-full min-h-[280px] p-4 rounded-xl bg-slate-900 border border-slate-700 focus:border-blue-500 text-slate-100 text-sm sm:text-base leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-sans"></textarea>
+          </div>
+
+          <!-- Export Actions Bar -->
+          <div class="mt-4 pt-4 border-t border-slate-800/80 space-y-2">
+            <span class="text-xs font-semibold text-slate-400 block mb-2">تصدير وتنزيل النتيجة:</span>
+            
+            <div class="grid grid-cols-3 gap-2">
+              <!-- Export TXT -->
+              <button type="button" id="btn-download-txt" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-file-lines text-blue-400"></i>
+                <span>ملف نصي (.TXT)</span>
+              </button>
+
+              <!-- Export Word DOC -->
+              <button type="button" id="btn-download-doc" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-file-word text-indigo-400"></i>
+                <span>مستند Word (.DOC)</span>
+              </button>
+
+              <!-- Print / PDF -->
+              <button type="button" id="btn-print-pdf" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-print text-emerald-400"></i>
+                <span>طباعة / PDF</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- Features & Instructions Section (Helpful for mobile users) -->
+    <section class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-400 text-xs">
+      <div class="p-4 rounded-xl bg-slate-850/60 border border-slate-800 flex items-start gap-3">
+        <span class="text-xl text-blue-400"><i class="fa-solid fa-lightbulb"></i></span>
+        <div>
+          <strong class="text-slate-200 block font-semibold mb-1">نصيحة لأعلى دقة:</strong>
+          تأكد من وضوح الصورة وإضاءتها الجيدة. استخدم زر "عزل النص" أو "رمادي" في شريط الفلاتر إذا كانت الخلفية ملونة أو مشوشة.
+        </div>
+      </div>
+
+      <div class="p-4 rounded-xl bg-slate-850/60 border border-slate-800 flex items-start gap-3">
+        <span class="text-xl text-indigo-400"><i class="fa-solid fa-mobile-screen"></i></span>
+        <div>
+          <strong class="text-slate-200 block font-semibold mb-1">الاستخدام على الموبايل:</strong>
+          يمكنك النقر على زر "التقاط بالكاميرا" لتصوير أي مستند، كتاب، أو ورقة مباشرة ليتم استخراج النص منها فوراً.
+        </div>
+      </div>
+
+      <div class="p-4 rounded-xl bg-slate-850/60 border border-slate-800 flex items-start gap-3">
+        <span class="text-xl text-emerald-400"><i class="fa-solid fa-cloud-arrow-down"></i></span>
+        <div>
+          <strong class="text-slate-200 block font-semibold mb-1">الرفع على GitHub Pages:</strong>
+          هذا المشروع مجهز بالكامل ليعمل كـ PWA وموقع ثابت على GitHub Pages برابط دائم ومجاني بنسبة 100%.
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Help & About Modal -->
+  <div id="help-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-circle-question text-blue-400"></i>
+          <span>حول الأداة وكيفية النشر على GitHub</span>
+        </h3>
+        <button id="btn-close-modal" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <p>
+          تطبيق <strong>Pro OCR Extractor</strong> تم تصميمه ليعمل بالكامل داخل المتصفح (Client-Side) باستخدام تقنية WebAssembly ومحرك Tesseract.js مفتوح المصدر.
+        </p>
+
+        <h4 class="font-bold text-white pt-2">🚀 خطوات رفع الصفحة على GitHub لتعمل على الموبايل:</h4>
+        <ol class="list-decimal list-inside space-y-1.5 text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
+          <li>أنشئ مستودعاً جديداً (New Repository) في حسابك على <a href="https://github.com" target="_blank" class="text-blue-400 underline">GitHub.com</a> وسمّه مثلاً <code class="bg-slate-800 px-1 py-0.5 rounded text-blue-300">ocr-app</code> واجعله Public.</li>
+          <li>اسحب ملفات هذا المجلد (<code class="bg-slate-800 px-1 py-0.5 rounded text-blue-300">index.html</code>, <code class="bg-slate-800 px-1 py-0.5 rounded text-blue-300">style.css</code>, <code class="bg-slate-800 px-1 py-0.5 rounded text-blue-300">app.js</code>, إلخ) وأفلتها في المستودع ثم اضغط <strong>Commit changes</strong>.</li>
+          <li>من المستودع، اذهب إلى <strong>Settings</strong> ➔ <strong>Pages</strong>.</li>
+          <li>تحت <strong>Branch</strong> اختر <code class="bg-slate-800 px-1 py-0.5 rounded text-blue-300">main</code> ثم اضغط <strong>Save</strong>.</li>
+          <li>خلال دقيقة واحدة، سيظهر لك رابط دائم وآمن مثل: <br><span class="text-emerald-400 font-mono text-xs">https://username.github.io/ocr-app</span> افتحه من متصفح الموبايل وستعمل معك بكامل ميزاتها!</li>
+        </ol>
+
+        <div class="pt-2 text-center">
+          <button id="btn-close-modal-2" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors">
+            فهمت ذلك، شكراً لك!
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- App JavaScript Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
