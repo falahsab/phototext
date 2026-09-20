@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pro-ocr-cache-v2';
+const CACHE_NAME = 'pro-ocr-cache-v3';
 const SHARED_CACHE_NAME = 'pro-ocr-shared-data';
 
 const ASSETS_TO_CACHE = [
@@ -35,30 +35,46 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Handle Web Share Target for incoming shared images (e.g. from WhatsApp, Gallery, etc.)
+  const url = new URL(event.request.url);
+
+  // CRITICAL: Handle Web Share Target ONLY for same-origin requests directed to the app
+  // NEVER intercept external API calls like Google Gemini (generativelanguage.googleapis.com)
   if (event.request.method === 'POST') {
-    event.respondWith((async () => {
-      try {
-        const formData = await event.request.formData();
-        const sharedFile = formData.get('shared_image');
-        if (sharedFile) {
-          const cache = await caches.open(SHARED_CACHE_NAME);
-          await cache.put('shared-image-transfer', new Response(sharedFile, {
-            headers: {
-              'content-type': sharedFile.type || 'image/jpeg',
-              'x-shared-timestamp': Date.now().toString()
-            }
-          }));
+    const isSameOrigin = url.origin === self.location.origin;
+    const isSharePath = url.pathname.endsWith('index.html') || url.pathname.endsWith('/') || url.pathname === self.location.pathname;
+
+    if (isSameOrigin && isSharePath) {
+      event.respondWith((async () => {
+        try {
+          const formData = await event.request.formData();
+          const sharedFile = formData.get('shared_image');
+          if (sharedFile) {
+            const cache = await caches.open(SHARED_CACHE_NAME);
+            await cache.put('shared-image-transfer', new Response(sharedFile, {
+              headers: {
+                'content-type': sharedFile.type || 'image/jpeg',
+                'x-shared-timestamp': Date.now().toString()
+              }
+            }));
+          }
+        } catch (err) {
+          console.error('Error in Service Worker share target:', err);
         }
-      } catch (err) {
-        console.error('Error in Service Worker share target:', err);
-      }
-      return Response.redirect('./index.html?shared=1', 303);
-    })());
+        return Response.redirect('./index.html?shared=1', 303);
+      })());
+      return;
+    }
+
+    // Pass all other POST requests (such as Google Gemini API calls) directly to network
     return;
   }
 
-  // Stale-while-revalidate strategy for GET requests
+  // Only cache same-origin GET requests for offline PWA operation
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Stale-while-revalidate strategy for local GET assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
