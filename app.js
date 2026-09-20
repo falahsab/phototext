@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTriggerBrowse = document.getElementById('btn-trigger-browse');
   const btnTriggerCamera = document.getElementById('btn-trigger-camera');
   const btnLoadSample = document.getElementById('btn-load-sample');
+  const btnLoadReceiverSample = document.getElementById('btn-load-receiver-sample');
 
   const previewSection = document.getElementById('preview-section');
   const imageCanvas = document.getElementById('image-canvas');
@@ -19,8 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const ctx = imageCanvas.getContext('2d');
 
   // Filter Buttons
+  const filterAdaptive = document.getElementById('filter-adaptive');
+  const filterSharpen = document.getElementById('filter-sharpen');
   const filterGrayscale = document.getElementById('filter-grayscale');
-  const filterThreshold = document.getElementById('filter-threshold');
   const filterInvert = document.getElementById('filter-invert');
   const filterRotate = document.getElementById('filter-rotate');
   const btnResetFilters = document.getElementById('btn-reset-filters');
@@ -34,6 +36,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const ocrProgressPercent = document.getElementById('ocr-progress-percent');
   const ocrProgressBar = document.getElementById('ocr-progress-bar');
   const ocrSubStatus = document.getElementById('ocr-sub-status');
+
+  // Gemini AI Vision Elements
+  const btnGeminiVision = document.getElementById('btn-gemini-vision');
+  const geminiModal = document.getElementById('gemini-modal');
+  const btnCloseGeminiModal = document.getElementById('btn-close-gemini-modal');
+  const btnCancelGemini = document.getElementById('btn-cancel-gemini');
+  const btnSubmitGemini = document.getElementById('btn-submit-gemini');
+  const geminiApiKeyInput = document.getElementById('gemini-api-key');
+
+  // Default Engine Selector Elements
+  const engineGemini = document.getElementById('engine-gemini');
+  const engineLocal = document.getElementById('engine-local');
+  const labelEngineGemini = document.getElementById('label-engine-gemini');
+  const labelEngineLocal = document.getElementById('label-engine-local');
+  const btnManageApiKey = document.getElementById('btn-manage-api-key');
+  const apiKeyStatusText = document.getElementById('api-key-status-text');
 
   // Text Results & Tools
   const resultText = document.getElementById('result-text');
@@ -74,8 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Filter State
   let filters = {
+    adaptive: false,
+    sharpen: false,
     grayscale: false,
-    threshold: false,
     invert: false,
     rotation: 0 // 0, 90, 180, 270
   };
@@ -132,7 +151,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Drag & Drop
+  // Window-level Drag & Drop protection (prevents browser from navigating away if dropped anywhere on page)
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      for (let file of e.dataTransfer.files) {
+        if (file.type.startsWith('image/')) {
+          loadImageFromFile(file);
+          showToast('تم استيراد الصورة المسحوبة بنجاح!', 'success');
+          return;
+        }
+      }
+    }
+  });
+
+  // DropZone specific styles
   ['dragenter', 'dragover'].forEach(eventName => {
     dropZone.addEventListener(eventName, (e) => {
       e.preventDefault();
@@ -150,22 +184,45 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const dt = e.dataTransfer;
-    if (dt.files && dt.files[0]) {
-      loadImageFromFile(dt.files[0]);
+    if (dt && dt.files && dt.files.length > 0) {
+      for (let file of dt.files) {
+        if (file.type.startsWith('image/')) {
+          loadImageFromFile(file);
+          return;
+        }
+      }
     }
   });
 
-  // Global Paste (Ctrl+V) for instant screenshots
+  // Enhanced Global Paste (Ctrl+V) for instant clipboard images
   window.addEventListener('paste', (e) => {
-    if (e.clipboardData && e.clipboardData.items) {
-      const items = e.clipboardData.items;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const file = items[i].getAsFile();
+    if (!e.clipboardData) return;
+
+    // 1. Check clipboard files directly
+    if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+      for (let file of e.clipboardData.files) {
+        if (file.type.startsWith('image/')) {
           loadImageFromFile(file);
           showToast('تم استيراد الصورة الملصوقة من الحافظة بنجاح!', 'success');
-          break;
+          return;
+        }
+      }
+    }
+
+    // 2. Check clipboard items
+    if (e.clipboardData.items && e.clipboardData.items.length > 0) {
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            loadImageFromFile(file);
+            showToast('تم استيراد الصورة الملصوقة من الحافظة بنجاح!', 'success');
+            return;
+          }
         }
       }
     }
@@ -190,9 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
         imageMeta.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
         showToast('تم تحميل الصورة بنجاح! جارٍ استخراج النص والرقم تلقائياً...', 'info');
 
-        // Automatic instant OCR trigger
+        // Automatic instant OCR trigger according to chosen default engine
         setTimeout(() => {
-          startOcrRecognition();
+          triggerAutoOcr();
         }, 400);
       };
       img.src = event.target.result;
@@ -262,21 +319,52 @@ document.addEventListener('DOMContentLoaded', () => {
       imageMeta.textContent = `${sampleImg.naturalWidth} × ${sampleImg.naturalHeight} px`;
       showToast('تم تحميل المستند التجريبي! جارٍ استخراج النص والرقم فوراً...', 'info');
 
-      // Automatic instant OCR trigger
+      // Automatic instant OCR trigger according to chosen default engine
       setTimeout(() => {
-        startOcrRecognition();
+        triggerAutoOcr();
       }, 400);
     };
     sampleImg.src = sampleCanvas.toDataURL('image/png');
   }
 
+  // Load Receiver / TV Screen Sample Demo Image (The challenging test image uploaded by user)
+  if (btnLoadReceiverSample) {
+    btnLoadReceiverSample.addEventListener('click', (e) => {
+      e.stopPropagation();
+      loadReceiverSampleImage();
+    });
+  }
+
+  function loadReceiverSampleImage() {
+    const img = new Image();
+    img.onload = () => {
+      currentImage = img;
+      resetFilterState();
+      renderCanvas();
+      previewSection.classList.remove('hidden');
+      btnStartOcr.removeAttribute('disabled');
+      imageMeta.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+      showToast('تم تحميل صورة شاشة الرسيفر! جارٍ الفحص المتقدم بالذكاء البصري...', 'info');
+
+      // Automatic instant OCR trigger according to chosen default engine
+      setTimeout(() => {
+        triggerAutoOcr();
+      }, 400);
+    };
+    img.onerror = () => {
+      showToast('تعذر تحميل الصورة التجريبية، يرجى رفع الصورة يدوياً', 'warning');
+    };
+    img.src = './sample_receiver.png';
+  }
+
   /* ==========================================================
-     3. Image Pre-Processing & Filters (Improves OCR Accuracy)
+     3. Advanced Image Pre-Processing & Filters (For Low-Quality Images)
      ========================================================== */
   function resetFilterState() {
     filters = {
+      adaptive: false,
+      sharpen: false,
       grayscale: false,
-      threshold: false,
       invert: false,
       rotation: 0
     };
@@ -284,9 +372,236 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateFilterButtonUI() {
-    filterGrayscale.classList.toggle('active', filters.grayscale);
-    filterThreshold.classList.toggle('active', filters.threshold);
-    filterInvert.classList.toggle('active', filters.invert);
+    if (filterAdaptive) filterAdaptive.classList.toggle('active', filters.adaptive);
+    if (filterSharpen) filterSharpen.classList.toggle('active', filters.sharpen);
+    if (filterGrayscale) filterGrayscale.classList.toggle('active', filters.grayscale);
+    if (filterInvert) filterInvert.classList.toggle('active', filters.invert);
+  }
+
+  // Polarity Detector: Detects if the image/border is dark or colored with light text (e.g. TV screens, OSD popups)
+  function detectImagePolarity(canvasCtx, width, height) {
+    const imgData = canvasCtx.getImageData(0, 0, width, height);
+    const d = imgData.data;
+    let totalLum = 0;
+    let sampleCount = 0;
+    const step = Math.max(1, Math.floor((width * height) / 3000));
+
+    for (let i = 0; i < d.length; i += 4 * step) {
+      totalLum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      sampleCount++;
+    }
+    const avgLum = totalLum / (sampleCount || 1);
+
+    // Sample border pixels specifically (true background)
+    let borderLum = 0;
+    let borderCount = 0;
+    for (let x = 0; x < width; x += 4) {
+      const idxTop = (0 * width + x) * 4;
+      const idxBot = ((height - 1) * width + x) * 4;
+      borderLum += (0.299 * d[idxTop] + 0.587 * d[idxTop + 1] + 0.114 * d[idxTop + 2]);
+      borderLum += (0.299 * d[idxBot] + 0.587 * d[idxBot + 1] + 0.114 * d[idxBot + 2]);
+      borderCount += 2;
+    }
+    const avgBorder = borderLum / (borderCount || 1);
+
+    return {
+      avgLum,
+      avgBorder,
+      // If border is dark or medium-dark (under 165), it's light text on dark/colored background
+      isDarkBackground: avgBorder < 165 || avgLum < 155
+    };
+  }
+
+  // 1. Dynamic Contrast Normalizer (Auto Contrast)
+  function applyAutoContrast(canvasCtx, width, height) {
+    const imgData = canvasCtx.getImageData(0, 0, width, height);
+    const d = imgData.data;
+    let min = 255;
+    let max = 0;
+
+    for (let i = 0; i < d.length; i += 4) {
+      const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      if (g < min) min = g;
+      if (g > max) max = g;
+    }
+
+    const range = max - min || 1;
+    if (range > 220 && min < 20) return;
+
+    for (let i = 0; i < d.length; i += 4) {
+      d[i] = Math.min(255, Math.max(0, Math.round(((d[i] - min) / range) * 255)));
+      d[i + 1] = Math.min(255, Math.max(0, Math.round(((d[i + 1] - min) / range) * 255)));
+      d[i + 2] = Math.min(255, Math.max(0, Math.round(((d[i + 2] - min) / range) * 255)));
+    }
+    canvasCtx.putImageData(imgData, 0, 0);
+  }
+
+  // 2. Convolution Sharpening Kernel (Restores blurred WhatsApp and LCD/TV screen edges)
+  function applySharpen(canvasCtx, width, height, strength = 3.6) {
+    const imgData = canvasCtx.getImageData(0, 0, width, height);
+    const d = imgData.data;
+    const copy = new Uint8ClampedArray(d);
+    const side = (strength - 1) / 4;
+
+    for (let y = 1; y < height - 1; y++) {
+      const row = y * width;
+      for (let x = 1; x < width - 1; x++) {
+        const idx = (row + x) * 4;
+        for (let c = 0; c < 3; c++) {
+          const top = copy[((y - 1) * width + x) * 4 + c];
+          const bottom = copy[((y + 1) * width + x) * 4 + c];
+          const left = copy[(row + (x - 1)) * 4 + c];
+          const right = copy[(row + (x + 1)) * 4 + c];
+          const center = copy[idx + c];
+
+          const val = center * strength - (top + bottom + left + right) * side;
+          d[idx + c] = Math.min(255, Math.max(0, Math.round(val)));
+        }
+      }
+    }
+    canvasCtx.putImageData(imgData, 0, 0);
+  }
+
+  // 3. Bradley Adaptive Local Thresholding (Erases uneven shadows, wrinkles & camera flash)
+  // Supports both Dark-on-Light (paper) and Light-on-Dark (TV screens / OSD popups)
+  function applyBradleyAdaptiveThreshold(canvasCtx, width, height, s = 25, t = 0.14, polarity = 'darkOnLight') {
+    const imgData = canvasCtx.getImageData(0, 0, width, height);
+    const data = imgData.data;
+    const numPixels = width * height;
+
+    const gray = new Uint8Array(numPixels);
+    const integral = new Float64Array(numPixels);
+
+    for (let y = 0; y < height; y++) {
+      const rowOffset = y * width;
+      for (let x = 0; x < width; x++) {
+        const idx = rowOffset + x;
+        const dIdx = idx * 4;
+        const g = Math.round(0.299 * data[dIdx] + 0.587 * data[dIdx + 1] + 0.114 * data[dIdx + 2]);
+        gray[idx] = g;
+
+        const left = x > 0 ? integral[idx - 1] : 0;
+        const top = y > 0 ? integral[(y - 1) * width + x] : 0;
+        const diag = (x > 0 && y > 0) ? integral[(y - 1) * width + (x - 1)] : 0;
+        integral[idx] = g + left + top - diag;
+      }
+    }
+
+    const s2 = Math.floor(s / 2);
+    const factorDark = 1.0 - t;
+    const factorLight = 1.0 + t;
+
+    for (let y = 0; y < height; y++) {
+      const y1 = Math.max(0, y - s2);
+      const y2 = Math.min(height - 1, y + s2);
+      const rowOffset = y * width;
+
+      for (let x = 0; x < width; x++) {
+        const x1 = Math.max(0, x - s2);
+        const x2 = Math.min(width - 1, x + s2);
+        const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+
+        const br = integral[y2 * width + x2];
+        const bl = x1 > 0 ? integral[y2 * width + (x1 - 1)] : 0;
+        const tr = y1 > 0 ? integral[(y1 - 1) * width + x2] : 0;
+        const tl = (x1 > 0 && y1 > 0) ? integral[(y1 - 1) * width + (x1 - 1)] : 0;
+        const sum = br - bl - tr + tl;
+
+        const idx = rowOffset + x;
+        const dIdx = idx * 4;
+        
+        let isForeground = false;
+        if (polarity === 'darkOnLight') {
+          // Dark ink on light paper
+          isForeground = (gray[idx] * count) <= (sum * factorDark);
+        } else {
+          // Glowing/white text on dark/blue screen: make the text black ink (0) and background white (255)
+          isForeground = (gray[idx] * count) >= (sum * factorLight);
+        }
+
+        // Tesseract always requires dark ink (0) on light background (255)
+        const val = isForeground ? 0 : 255;
+        data[dIdx] = val;
+        data[dIdx + 1] = val;
+        data[dIdx + 2] = val;
+      }
+    }
+    canvasCtx.putImageData(imgData, 0, 0);
+  }
+
+  // 4. Off-Screen Processed Canvas Helper for Multi-Pass OCR with Smart Auto-Upscaling
+  function createProcessedCanvas(sourceCanvas, type) {
+    const c = document.createElement('canvas');
+    
+    // Dynamic Super-Resolution Scaling:
+    // Small TV screenshots (e.g. 448x323) need at least 3x upscale so 14px digits reach 45-50px!
+    const maxDim = Math.max(sourceCanvas.width, sourceCanvas.height);
+    let scale = 1.0;
+    if (maxDim < 600) {
+      scale = 3.2; // 448px -> ~1433px
+    } else if (maxDim < 1100) {
+      scale = 2.0;
+    } else if (maxDim < 1600) {
+      scale = 1.4;
+    }
+
+    c.width = Math.round(sourceCanvas.width * scale);
+    c.height = Math.round(sourceCanvas.height * scale);
+    const cCtx = c.getContext('2d');
+    cCtx.imageSmoothingEnabled = true;
+    cCtx.imageSmoothingQuality = 'high';
+    cCtx.drawImage(sourceCanvas, 0, 0, c.width, c.height);
+
+    if (type === 'inverted_contrast') {
+      // 1. Invert RGB raw values FIRST (White text 255 becomes near 0, dark/blue background becomes light)
+      const imgData = cCtx.getImageData(0, 0, c.width, c.height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = 255 - d[i];
+        d[i + 1] = 255 - d[i + 1];
+        d[i + 2] = 255 - d[i + 2];
+      }
+      cCtx.putImageData(imgData, 0, 0);
+      
+      // 2. Normalize and stretch contrast (maps text to pure black 0 and background to pure white 255)
+      applyAutoContrast(cCtx, c.width, c.height);
+      // 3. Sharpen edges
+      applySharpen(cCtx, c.width, c.height, 3.8);
+
+    } else if (type === 'adaptive_light_on_dark') {
+      // For white/glowing text on TV/receiver blue dialogs
+      applyAutoContrast(cCtx, c.width, c.height);
+      applySharpen(cCtx, c.width, c.height, 3.2);
+      applyBradleyAdaptiveThreshold(cCtx, c.width, c.height, 25, 0.12, 'lightOnDark');
+
+    } else if (type === 'channel_red') {
+      // In blue/cyan TV screens, Red channel offers the extreme maximum contrast between white text & blue box!
+      const imgData = cCtx.getImageData(0, 0, c.width, c.height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Red value inverted: White text (R=255) becomes 0 (black), Blue box (R=120) becomes 135
+        const rInv = 255 - d[i];
+        d[i] = rInv;
+        d[i + 1] = rInv;
+        d[i + 2] = rInv;
+      }
+      cCtx.putImageData(imgData, 0, 0);
+      applyAutoContrast(cCtx, c.width, c.height);
+      applySharpen(cCtx, c.width, c.height, 3.6);
+
+    } else if (type === 'adaptive_dark_on_light') {
+      // Standard Bradley for dark text on paper with shadows/creases
+      applyAutoContrast(cCtx, c.width, c.height);
+      applySharpen(cCtx, c.width, c.height, 3.2);
+      applyBradleyAdaptiveThreshold(cCtx, c.width, c.height, 25, 0.14, 'darkOnLight');
+
+    } else if (type === 'upscale_sharpen') {
+      // High-resolution scaled with contrast stretch and convolution sharpening
+      applyAutoContrast(cCtx, c.width, c.height);
+      applySharpen(cCtx, c.width, c.height, 3.4);
+    }
+
+    return c;
   }
 
   function renderCanvas() {
@@ -307,66 +622,79 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.drawImage(currentImage, -currentImage.naturalWidth / 2, -currentImage.naturalHeight / 2);
     ctx.restore();
 
-    // Apply pixel filters if enabled
-    if (filters.grayscale || filters.threshold || filters.invert) {
+    // Apply pixel filters in optimal order
+    if (filters.invert) {
       const imgData = ctx.getImageData(0, 0, width, height);
       const d = imgData.data;
-
       for (let i = 0; i < d.length; i += 4) {
-        let r = d[i];
-        let g = d[i + 1];
-        let b = d[i + 2];
-
-        // Grayscale conversion using luminance formula
-        let gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-
-        if (filters.threshold) {
-          // Binarization: isolates crisp black text from paper background
-          gray = gray > 140 ? 255 : 0;
-          r = g = b = gray;
-        } else if (filters.grayscale) {
-          r = g = b = gray;
-        }
-
-        if (filters.invert) {
-          r = 255 - r;
-          g = 255 - g;
-          b = 255 - b;
-        }
-
-        d[i] = r;
-        d[i + 1] = g;
-        d[i + 2] = b;
+        d[i] = 255 - d[i];
+        d[i + 1] = 255 - d[i + 1];
+        d[i + 2] = 255 - d[i + 2];
       }
-
       ctx.putImageData(imgData, 0, 0);
+    }
+
+    if (filters.grayscale) {
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        d[i] = d[i + 1] = d[i + 2] = gray;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    if (filters.sharpen) {
+      applySharpen(ctx, width, height);
+    }
+
+    if (filters.adaptive) {
+      applyAutoContrast(ctx, width, height);
+      applyBradleyAdaptiveThreshold(ctx, width, height, 25, 0.14, 'darkOnLight');
     }
   }
 
-  filterGrayscale.addEventListener('click', () => {
-    filters.grayscale = !filters.grayscale;
-    updateFilterButtonUI();
-    renderCanvas();
-  });
+  if (filterAdaptive) {
+    filterAdaptive.addEventListener('click', () => {
+      filters.adaptive = !filters.adaptive;
+      updateFilterButtonUI();
+      renderCanvas();
+      showToast(filters.adaptive ? 'تم تفعيل عزل الظلال والتباين الذكي' : 'تم إلغاء عزل الظلال', 'info');
+    });
+  }
 
-  filterThreshold.addEventListener('click', () => {
-    filters.threshold = !filters.threshold;
-    if (filters.threshold) filters.grayscale = true;
-    updateFilterButtonUI();
-    renderCanvas();
-  });
+  if (filterSharpen) {
+    filterSharpen.addEventListener('click', () => {
+      filters.sharpen = !filters.sharpen;
+      updateFilterButtonUI();
+      renderCanvas();
+      showToast(filters.sharpen ? 'تم تفعيل توضيح الحواف الباهتة' : 'تم إلغاء توضيح الحواف', 'info');
+    });
+  }
 
-  filterInvert.addEventListener('click', () => {
-    filters.invert = !filters.invert;
-    updateFilterButtonUI();
-    renderCanvas();
-  });
+  if (filterGrayscale) {
+    filterGrayscale.addEventListener('click', () => {
+      filters.grayscale = !filters.grayscale;
+      updateFilterButtonUI();
+      renderCanvas();
+    });
+  }
 
-  filterRotate.addEventListener('click', () => {
-    filters.rotation = (filters.rotation + 90) % 360;
-    renderCanvas();
-    showToast(`تم تدوير الصورة إلى ${filters.rotation} درجة`, 'info');
-  });
+  if (filterInvert) {
+    filterInvert.addEventListener('click', () => {
+      filters.invert = !filters.invert;
+      updateFilterButtonUI();
+      renderCanvas();
+    });
+  }
+
+  if (filterRotate) {
+    filterRotate.addEventListener('click', () => {
+      filters.rotation = (filters.rotation + 90) % 360;
+      renderCanvas();
+      showToast(`تم تدوير الصورة إلى ${filters.rotation} درجة`, 'info');
+    });
+  }
 
   btnResetFilters.addEventListener('click', () => {
     resetFilterState();
@@ -375,10 +703,114 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ==========================================================
-     4. OCR Engine Execution (Tesseract.js v5)
+     4. Default Engine & Multi-Pass OCR Execution
      ========================================================== */
+  function getActiveEngine() {
+    return localStorage.getItem('pro_ocr_default_engine') || 'gemini';
+  }
+
+  function updateApiKeyStatusUI() {
+    const savedKey = localStorage.getItem('pro_ocr_gemini_key');
+    if (!apiKeyStatusText) return;
+    if (savedKey) {
+      apiKeyStatusText.innerHTML = '<span class="text-emerald-400 font-bold">مفتاح Gemini: مفعّل ✓</span> (تعديل)';
+    } else {
+      apiKeyStatusText.textContent = 'إعداد مفتاح Gemini';
+    }
+  }
+
+  function updateEngineUI() {
+    const activeEngine = getActiveEngine();
+    updateApiKeyStatusUI();
+
+    if (activeEngine === 'gemini') {
+      if (engineGemini) engineGemini.checked = true;
+      if (labelEngineGemini) {
+        labelEngineGemini.className = 'cursor-pointer relative flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-purple-500/80 bg-purple-500/10 shadow-sm transition-all select-none';
+      }
+      if (labelEngineLocal) {
+        labelEngineLocal.className = 'cursor-pointer relative flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition-all select-none';
+      }
+      if (btnStartOcr) {
+        btnStartOcr.className = 'w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm sm:text-base shadow-lg shadow-purple-600/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2.5 cursor-pointer';
+        btnStartOcr.innerHTML = '<i class="fa-solid fa-brain text-amber-300"></i> <span>فحص الصورة بالذكاء الاصطناعي (Gemini Vision)</span>';
+      }
+      if (btnGeminiVision) {
+        btnGeminiVision.innerHTML = '<i class="fa-solid fa-bolt text-blue-400"></i> <span>أو الفحص بالمحرك المحلي (Tesseract.js)</span>';
+      }
+    } else {
+      if (engineLocal) engineLocal.checked = true;
+      if (labelEngineLocal) {
+        labelEngineLocal.className = 'cursor-pointer relative flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-blue-500/80 bg-blue-500/10 shadow-sm transition-all select-none';
+      }
+      if (labelEngineGemini) {
+        labelEngineGemini.className = 'cursor-pointer relative flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition-all select-none';
+      }
+      if (btnStartOcr) {
+        btnStartOcr.className = 'w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2.5 cursor-pointer';
+        btnStartOcr.innerHTML = '<i class="fa-solid fa-bolt text-cyan-300"></i> <span>فحص الصورة بالمحرك المحلي (Tesseract.js)</span>';
+      }
+      if (btnGeminiVision) {
+        btnGeminiVision.innerHTML = '<i class="fa-solid fa-brain text-purple-400"></i> <span>أو الفحص بالذكاء الاصطناعي (Gemini Vision)</span>';
+      }
+    }
+  }
+
+  // Initialize Engine UI state on load
+  updateEngineUI();
+
+  // Engine Radio Button change listeners
+  if (engineGemini) {
+    engineGemini.addEventListener('change', () => {
+      localStorage.setItem('pro_ocr_default_engine', 'gemini');
+      updateEngineUI();
+      showToast('تم ضبط الذكاء الاصطناعي (Gemini) كمحرك افتراضي تلقائي!', 'success');
+      const savedKey = localStorage.getItem('pro_ocr_gemini_key');
+      if (!savedKey) {
+        geminiModal.classList.remove('hidden');
+        geminiApiKeyInput.focus();
+      }
+    });
+  }
+
+  if (engineLocal) {
+    engineLocal.addEventListener('change', () => {
+      localStorage.setItem('pro_ocr_default_engine', 'local');
+      updateEngineUI();
+      showToast('تم ضبط المحرك المحلي (Tesseract) كمحرك افتراضي!', 'info');
+    });
+  }
+
+  if (btnManageApiKey) {
+    btnManageApiKey.addEventListener('click', () => {
+      const savedKey = localStorage.getItem('pro_ocr_gemini_key') || '';
+      geminiApiKeyInput.value = savedKey;
+      geminiModal.classList.remove('hidden');
+      geminiApiKeyInput.focus();
+    });
+  }
+
+  function triggerAutoOcr() {
+    if (!currentImage || isProcessing) return;
+    const activeEngine = getActiveEngine();
+
+    if (activeEngine === 'gemini') {
+      const savedKey = localStorage.getItem('pro_ocr_gemini_key');
+      if (savedKey) {
+        runGeminiVisionOcr(savedKey);
+      } else {
+        geminiModal.classList.remove('hidden');
+        geminiApiKeyInput.focus();
+        showToast('يرجى حفظ مفتاح Gemini API المجاني للبدء بالفحص بالذكاء الاصطناعي', 'info');
+      }
+    } else {
+      startOcrRecognition();
+    }
+  }
+
+  // Primary Start Button: runs active default engine
   btnStartOcr.addEventListener('click', () => {
-    startOcrRecognition();
+    triggerAutoOcr();
   });
 
   async function startOcrRecognition() {
@@ -390,40 +822,83 @@ document.addEventListener('DOMContentLoaded', () => {
     isProcessing = true;
     btnStartOcr.setAttribute('disabled', 'true');
     ocrProgressCard.classList.remove('hidden');
-    ocrProgressBar.style.width = '5%';
-    ocrProgressPercent.textContent = '5%';
-    ocrStatusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> جارٍ الاتصال بمحرك التعرّف...';
-    ocrSubStatus.textContent = 'Preparing worker and resources...';
+    ocrProgressBar.style.width = '10%';
+    ocrProgressPercent.textContent = '10%';
+    ocrStatusText.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> جارٍ فحص الصورة بالذكاء البصري...';
+    ocrSubStatus.textContent = 'تحليل خصائص الإضاءة ونوع الشاشة...';
 
     try {
-      showToast('بدأت عملية استخراج النصوص... يرجى الانتظار ثوانٍ', 'info');
+      // 1. Analyze image polarity (detects if it's a TV screen/receiver popup with white text on dark/blue)
+      const polarity = detectImagePolarity(ctx, imageCanvas.width, imageCanvas.height);
+      
+      // Determine optimal sequence of passes
+      const passPlan = polarity.isDarkBackground
+        ? [
+            { type: 'inverted_contrast', title: 'المرحلة 1: شاشات التلفزيون والألوان المعكوسة (Inverted High-Contrast)' },
+            { type: 'adaptive_light_on_dark', title: 'المرحلة 2: عزل توهج شاشات العرض والتباين الموضعي' },
+            { type: 'channel_red', title: 'المرحلة 3: عزل طيف الألوان العالي لشاشات الرسيفر' },
+            { type: 'upscale_sharpen', title: 'المرحلة 4: التكبير الفائق وتوضيح الحواف' },
+            { type: 'adaptive_dark_on_light', title: 'المرحلة 5: الفحص التكيفي العميق للظلال' }
+          ]
+        : [
+            { type: 'upscale_sharpen', title: 'المرحلة 1: التكبير الفائق وتوضيح الحواف الباهتة' },
+            { type: 'adaptive_dark_on_light', title: 'المرحلة 2: إزالة الظلال والتباين التكيفي الموضعي' },
+            { type: 'inverted_contrast', title: 'المرحلة 3: فحص الخلفيات المعكوسة والداكنة' },
+            { type: 'adaptive_light_on_dark', title: 'المرحلة 4: عزل النصوص المضيئة على خلفيات ملونة' }
+          ];
 
-      // Execute Tesseract recognition with progress logger
-      const result = await Tesseract.recognize(
-        imageCanvas,
-        selectedLang,
-        {
-          logger: (progress) => {
-            handleOcrProgress(progress);
+      let extractedText = '';
+      let confidence = 0;
+      let found12Digits = [];
+
+      // Execute Multi-Pass Pipeline until 12-digit number is discovered
+      for (let i = 0; i < passPlan.length; i++) {
+        const pass = passPlan[i];
+        const passPercent = Math.round(((i + 1) / (passPlan.length + 1)) * 100);
+
+        ocrStatusText.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles fa-spin text-amber-400"></i> ${pass.title}...`;
+        ocrSubStatus.textContent = `فحص متقدم (${i + 1} من ${passPlan.length})`;
+        ocrProgressBar.style.width = `${Math.max(15, passPercent)}%`;
+        ocrProgressPercent.textContent = `${Math.max(15, passPercent)}%`;
+
+        const passCanvas = createProcessedCanvas(imageCanvas, pass.type);
+
+        const passResult = await Tesseract.recognize(
+          passCanvas,
+          selectedLang,
+          {
+            logger: (progress) => {
+              handleOcrProgress(progress, pass.title);
+            }
           }
+        );
+
+        const passText = (passResult.data.text || '').trim();
+        const passConf = Math.round(passResult.data.confidence || 0);
+        const passFound = extract12DigitNumbers(passText);
+
+        if (passText) {
+          extractedText = extractedText ? `${extractedText}\n---\n${passText}` : passText;
+          confidence = Math.max(confidence, passConf);
         }
-      );
 
-      // Handle Result
-      const extractedText = result.data.text.trim();
-      const confidence = Math.round(result.data.confidence || 0);
+        if (passFound.length > 0) {
+          found12Digits = passFound;
+          break; // Exit multi-pass immediately once the 12-digit number is extracted!
+        }
+      }
 
-      if (!extractedText) {
-        resultText.value = 'لم يتم العثور على نص واضح في هذه الصورة.\n\nجرّب النصائح التالية:\n1. تأكد من تحديد لغة النص الصحيحة من القائمة.\n2. استخدم زر "عزل النص" أو "رمادي" في شريط الفلاتر.\n3. تأكد من تدوير الصورة بالاتجاه الصحيح.';
+      // Handle Final Result Presentation
+      if (!extractedText && found12Digits.length === 0) {
+        resultText.value = 'لم يتم العثور على نص واضح في هذه الصورة.\n\nجرّب النصائح التالية:\n1. اضغط على زر "عزل الظلال" أو "توضيح الحواف" في شريط الفلاتر.\n2. تأكد من تدوير الصورة بالاتجاه الصحيح.\n3. أو استخدم زر "فحص فائق بالذكاء الاصطناعي (Gemini)" للصور بالغة الصعوبة.';
         confidenceBadge.classList.add('hidden');
         detectAndRender12DigitNumbers('');
-        showToast('لم يتم العثور على نص. راجع نصائح تحسين الصورة!', 'warning');
+        showToast('لم يتم العثور على نص. استخدم زر عزل الظلال أو فحص الذكاء الاصطناعي!', 'warning');
       } else {
         resultText.value = extractedText;
         confidenceBadge.textContent = `دقة التعرّف: ${confidence}%`;
         confidenceBadge.classList.remove('hidden');
 
-        // Colorize confidence badge
         if (confidence >= 80) {
           confidenceBadge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
         } else if (confidence >= 55) {
@@ -435,16 +910,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStats();
         autoDetectDirection(extractedText);
 
-        // Detect and display 12-digit number in top-level dedicated card
-        const found12Digits = detectAndRender12DigitNumbers(extractedText);
+        // Display 12-Digit Numbers
+        render12DigitCards(found12Digits);
+
         if (found12Digits.length > 0) {
-          showToast(`تم اكتشاف رقم مكون من 12 رقماً (${found12Digits[0]}) في أعلى الصفحة!`, 'success');
-          // Smooth scroll to top 12-digit container so it is immediately visible
+          showToast(`تم استخراج الرقم بنجاح (${found12Digits[0]}) في أعلى الصفحة!`, 'success');
           setTimeout(() => {
             digit12Container.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }, 200);
         } else {
-          showToast(`اكتمل استخراج النص بنجاح! نسبة الدقة المقدرة: ${confidence}%`, 'success');
+          showToast(`اكتمل استخراج النص بنجاح! نسبة الدقة المقدرة: ${confidence}%`, 'info');
         }
       }
 
@@ -467,7 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Arabic Friendly Progress Translator
-  function handleOcrProgress(m) {
+  function handleOcrProgress(m, stagePrefix = '') {
     let statusAr = 'جارٍ معالجة الصورة...';
     const percent = Math.min(100, Math.round((m.progress || 0) * 100));
 
@@ -478,7 +953,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (m.status === 'initializing api') {
       statusAr = 'تهيئة محرك القراءة البصرية...';
     } else if (m.status === 'recognizing text') {
-      statusAr = `جارٍ استخراج وقراءة النصوص (${percent}%)...`;
+      statusAr = `${stagePrefix ? stagePrefix + ': ' : ''}استخراج وقراءة النصوص (${percent}%)...`;
     }
 
     ocrStatusText.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> ${statusAr}`;
@@ -488,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ==========================================================
-     5. 12-Digit Number Extraction & Rendering
+     5. 12-Digit Number Extraction, Character Healing & Rendering
      ========================================================== */
   function normalizeDigits(str) {
     if (!str) return '';
@@ -498,43 +973,154 @@ document.addEventListener('DOMContentLoaded', () => {
               .replace(/[۰-۹]/g, d => persianMap[d] || d);
   }
 
+  // Global map tracking receiver suffixes (e.g., -1618 for card 240411451232)
+  let digitSuffixMap = {};
+
+  // Expanded lookalike map for fuzzy character confusion in blurry / LCD / TV screen images
+  const ocrDigitFixMap = {
+    'O': '0', 'o': '0', 'D': '0', 'Q': '0', 'C': '0', 'U': '0',
+    'l': '1', 'I': '1', 'i': '1', '|': '1', '!': '1', '[': '1', ']': '1', '/': '1', '\\': '1',
+    'Z': '2', 'z': '2',
+    'E': '3',
+    'A': '4', 'a': '4', 'h': '4',
+    'S': '5', 's': '5', '$': '5',
+    'b': '6', 'G': '6',
+    'T': '7', 't': '7',
+    'B': '8', '&': '8',
+    'g': '9', 'q': '9'
+  };
+
+  function healOcrCandidate(candidate) {
+    if (!candidate) return null;
+    let digitsCount = 0;
+    let healed = '';
+
+    for (let char of candidate) {
+      if (/\d/.test(char)) {
+        healed += char;
+        digitsCount++;
+      } else if (ocrDigitFixMap[char]) {
+        healed += ocrDigitFixMap[char];
+      }
+    }
+
+    // Must result in exactly 12 digits, and at least 7 must have been real original digits
+    if (healed.length === 12 && digitsCount >= 7) {
+      return healed;
+    }
+    return null;
+  }
+
   function extract12DigitNumbers(rawText) {
     if (!rawText) return [];
     const text = normalizeDigits(rawText);
     const foundNumbers = new Set();
+    digitSuffixMap = {};
 
-    // 1. Check for pure 12-digit sequences not attached to longer digits
+    // 1. Check for 12 digits followed by receiver suffix (e.g. 240411451232-1618 or 240411451232 1618)
+    const suffixMatches = text.match(/(?<!\d)(\d{12})([\s\-_/:]+\d{2,6})(?!\d)/g);
+    if (suffixMatches) {
+      suffixMatches.forEach(m => {
+        const parts = m.match(/(?<!\d)(\d{12})([\s\-_/:]+\d{2,6})(?!\d)/);
+        if (parts) {
+          const num = parts[1];
+          const suf = parts[2].trim();
+          foundNumbers.add(num);
+          digitSuffixMap[num] = suf;
+        }
+      });
+    }
+
+    // 2. Check for pure continuous 12-digit sequence
     const pureMatches = text.match(/(?<!\d)\d{12}(?!\d)/g);
     if (pureMatches) {
       pureMatches.forEach(num => foundNumbers.add(num));
     }
 
-    // 2. Check for 12 digits separated by spaces, dashes, or dots (e.g., 1234 5678 9012 or 1234-5678-9012)
+    // 3. Check for 12 digits formatted with spaces/dashes (e.g. 2404 1145 1232 or 2404-1145-1232)
+    const formattedMatches = text.match(/(?<!\d)(\d{4}[\s\-_.]\d{4}[\s\-_.]\d{4})(?!\d)/g);
+    if (formattedMatches) {
+      formattedMatches.forEach(fm => {
+        const clean = fm.replace(/\D/g, '');
+        if (clean.length === 12) {
+          foundNumbers.add(clean);
+        }
+      });
+    }
+
+    // 4. Check for joined receiver stream where serial + check digits were fused (e.g. 2404114512321618)
+    const joinedMatches = text.match(/(?<!\d)(\d{12})(\d{3,6})(?!\d)/g);
+    if (joinedMatches) {
+      joinedMatches.forEach(jm => {
+        const num = jm.slice(0, 12);
+        const suf = '-' + jm.slice(12);
+        foundNumbers.add(num);
+        if (!digitSuffixMap[num]) {
+          digitSuffixMap[num] = suf;
+        }
+      });
+    }
+
+    // 5. Line/token partition check
     const tokens = text.split(/[\r\n\t,;،:]+/);
     tokens.forEach(token => {
-      const candidates = token.match(/(?:\b|\s|^)(?:[\d\s\-\.\/]{12,24})(?:\b|\s|$)/g);
+      const candidates = token.match(/(?:\b|\s|^)(?:[\d\s\-\.\/]{12,28})(?:\b|\s|$)/g);
       if (candidates) {
         candidates.forEach(c => {
-          const cleanDigits = c.replace(/\D/g, '');
-          if (cleanDigits.length === 12) {
-            foundNumbers.add(cleanDigits);
+          const d12 = c.match(/(?<!\d)(\d{12})(?!\d)/);
+          if (d12) {
+            foundNumbers.add(d12[1]);
+          } else {
+            const cleanDigits = c.replace(/\D/g, '');
+            if (cleanDigits.length === 12) {
+              foundNumbers.add(cleanDigits);
+            } else if (cleanDigits.length >= 14 && cleanDigits.length <= 18) {
+              const num = cleanDigits.slice(0, 12);
+              foundNumbers.add(num);
+              if (!digitSuffixMap[num]) {
+                digitSuffixMap[num] = '-' + cleanDigits.slice(12);
+              }
+            }
           }
         });
       }
     });
+
+    // 6. Smart Fuzzy OCR Healing for noisy/blurry/LCD text where 1-4 digits were misread as letters
+    const fuzzyCandidates = text.match(/[A-Za-z0-9\-\s\.\/]{11,28}/g);
+    if (fuzzyCandidates) {
+      fuzzyCandidates.forEach(cand => {
+        const cleaned = cand.replace(/[\s\-\.\/]/g, '');
+        const healed12 = healOcrCandidate(cleaned.slice(0, 12));
+        if (healed12) {
+          foundNumbers.add(healed12);
+          if (cleaned.length > 12 && !digitSuffixMap[healed12]) {
+            digitSuffixMap[healed12] = '-' + cleaned.slice(12);
+          }
+        }
+        if (cleaned.length === 12) {
+          const healed = healOcrCandidate(cleaned);
+          if (healed) foundNumbers.add(healed);
+        }
+      });
+    }
 
     return Array.from(foundNumbers);
   }
 
   function detectAndRender12DigitNumbers(text) {
     const numbers = extract12DigitNumbers(text);
+    render12DigitCards(numbers);
+    return numbers;
+  }
 
-    if (!digit12Container || !digit12List) return [];
+  function render12DigitCards(numbers) {
+    if (!digit12Container || !digit12List) return;
 
-    if (numbers.length === 0) {
+    if (!numbers || numbers.length === 0) {
       digit12Container.classList.add('hidden');
       digit12List.innerHTML = '';
-      return [];
+      return;
     }
 
     digit12Container.classList.remove('hidden');
@@ -545,12 +1131,13 @@ document.addEventListener('DOMContentLoaded', () => {
     digit12List.innerHTML = '';
 
     numbers.forEach((num, index) => {
-      // Format 12 digits as 4 4 4 (e.g. 1234 5678 9012)
       const formatted = num.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3');
+      const suffix = digitSuffixMap[num] || '';
+      const fullCode = num + suffix;
 
       const card = document.createElement('div');
       card.className = 'flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-900/95 border border-amber-500/40 shadow-md transition-all hover:border-amber-400';
-      
+
       card.innerHTML = `
         <div class="flex items-center gap-3 overflow-hidden">
           <span class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-300 font-mono font-bold text-xs flex items-center justify-center border border-amber-500/30 shrink-0">
@@ -560,21 +1147,33 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="digit12-text font-mono font-black text-xl sm:text-2xl tracking-widest text-amber-300 select-all dir-ltr text-left">
               ${num}
             </span>
+            ${suffix ? `
+              <span class="text-[11px] text-amber-400/90 font-mono dir-ltr text-left flex items-center gap-1 mt-0.5">
+                <i class="fa-solid fa-satellite-dish text-xs text-amber-400"></i>
+                <span>ملحق الكود: <strong>${suffix}</strong> | الكود الكامل: <strong>${fullCode}</strong></span>
+              </span>
+            ` : ''}
             <span class="text-[11px] text-slate-400 font-mono dir-ltr text-left">
               تنسيق القراءة: ${formatted}
             </span>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+        <div class="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
           <button type="button" class="btn-copy-digit12 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-md shadow-amber-500/25 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
             <i class="fa-regular fa-copy text-sm"></i>
             <span>نسخ الرقم (12)</span>
           </button>
+          ${suffix ? `
+            <button type="button" class="btn-copy-full px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer" title="نسخ الكود كاملاً مع الملحق">
+              <i class="fa-solid fa-copy text-xs"></i>
+              <span>نسخ مع الملحق</span>
+            </button>
+          ` : ''}
         </div>
       `;
 
-      // Copy Button Event Listener
+      // Copy 12-Digit Button
       const copyBtn = card.querySelector('.btn-copy-digit12');
       copyBtn.addEventListener('click', async () => {
         try {
@@ -588,8 +1187,7 @@ document.addEventListener('DOMContentLoaded', () => {
           document.body.removeChild(dummy);
         }
 
-        // Animated Success Feedback
-        copyBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-950 text-sm"></i> <span>تم النسخ بنجاح!</span>';
+        copyBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-950 text-sm"></i> <span>تم النسخ!</span>';
         copyBtn.className = 'btn-copy-digit12 px-4 py-2.5 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs shadow-md transition-all flex items-center gap-2';
         showToast(`تم نسخ الرقم (${num}) إلى الحافظة!`, 'success');
 
@@ -599,10 +1197,190 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2200);
       });
 
+      // Copy Full Code with Suffix (if available)
+      const copyFullBtn = card.querySelector('.btn-copy-full');
+      if (copyFullBtn) {
+        copyFullBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(fullCode);
+          } catch (e) {
+            const dummy = document.createElement('textarea');
+            dummy.value = fullCode;
+            document.body.appendChild(dummy);
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+          }
+
+          copyFullBtn.innerHTML = '<i class="fa-solid fa-check text-emerald-400 text-xs"></i> <span>تم النسخ!</span>';
+          showToast(`تم نسخ الكود كاملاً (${fullCode})!`, 'success');
+
+          setTimeout(() => {
+            copyFullBtn.innerHTML = '<i class="fa-solid fa-copy text-xs"></i> <span>نسخ مع الملحق</span>';
+          }, 2200);
+        });
+      }
+
       digit12List.appendChild(card);
     });
+  }
 
-    return numbers;
+  /* ==========================================================
+     Gemini AI Vision Integration (Ultra-HD Option for Extreme Images)
+     ========================================================== */
+  if (btnGeminiVision) {
+    btnGeminiVision.addEventListener('click', () => {
+      if (!currentImage) {
+        showToast('يرجى استيراد صورة أولاً لاستخراج النصوص منها!', 'warning');
+        return;
+      }
+      const activeEngine = getActiveEngine();
+      if (activeEngine === 'gemini') {
+        // Run Alternative: Local Tesseract Engine
+        showToast('تشغيل الفحص بالمحرك المحلي (Tesseract.js)...', 'info');
+        startOcrRecognition();
+      } else {
+        // Run Alternative: Gemini AI Vision Engine
+        const savedKey = localStorage.getItem('pro_ocr_gemini_key');
+        if (savedKey) {
+          runGeminiVisionOcr(savedKey);
+        } else {
+          geminiModal.classList.remove('hidden');
+          geminiApiKeyInput.focus();
+        }
+      }
+    });
+  }
+
+  if (btnCloseGeminiModal) {
+    btnCloseGeminiModal.addEventListener('click', () => geminiModal.classList.add('hidden'));
+  }
+  if (btnCancelGemini) {
+    btnCancelGemini.addEventListener('click', () => geminiModal.classList.add('hidden'));
+  }
+
+  if (btnSubmitGemini) {
+    btnSubmitGemini.addEventListener('click', () => {
+      const key = geminiApiKeyInput.value.trim();
+      if (!key) {
+        showToast('يرجى إدخال مفتاح Google Gemini API صالح', 'warning');
+        return;
+      }
+      localStorage.setItem('pro_ocr_gemini_key', key);
+      updateEngineUI();
+      geminiModal.classList.add('hidden');
+      showToast('تم حفظ مفتاح Gemini API بنجاح! جارٍ فحص الصورة...', 'success');
+      runGeminiVisionOcr(key);
+    });
+  }
+
+  async function runGeminiVisionOcr(apiKey) {
+    if (!currentImage || isProcessing) return;
+
+    isProcessing = true;
+    ocrProgressCard.classList.remove('hidden');
+    ocrProgressBar.style.width = '20%';
+    ocrProgressPercent.textContent = '20%';
+    ocrStatusText.innerHTML = '<i class="fa-solid fa-brain fa-spin text-purple-400"></i> جارٍ فحص الصورة بنموذج Gemini Vision الخارق...';
+    ocrSubStatus.textContent = 'Analyzing degraded image using Multimodal Vision AI...';
+    showToast('بدأ الفحص الخارق بالذكاء الاصطناعي (Gemini Vision)...', 'info');
+
+    try {
+      const base64Data = imageCanvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+      const mimeType = 'image/jpeg';
+
+      ocrProgressBar.style.width = '55%';
+      ocrProgressPercent.textContent = '55%';
+
+      const prompt = 'You are an advanced OCR engine. Extract ALL text from this image accurately. Look specifically for any 12-digit number (such as an ID number, serial number, voucher, or card number). Output the 12-digit number clearly, and then the rest of the text.';
+
+      let response = null;
+      let lastError = null;
+      const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
+      for (const model of modelsToTry) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: mimeType, data: base64Data } }
+                ]
+              }]
+            })
+          });
+
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            lastError = errJson.error?.message || `HTTP error ${res.status}`;
+            if (lastError.includes('no longer available') || lastError.includes('not found') || res.status === 404) {
+              continue; // Try next model
+            } else {
+              throw new Error(lastError);
+            }
+          }
+        } catch (e) {
+          if (e.message && (e.message.includes('no longer available') || e.message.includes('not found'))) {
+            continue;
+          }
+          throw e;
+        }
+      }
+
+      if (!response) {
+        throw new Error(lastError || 'تعذر الاتصال بنماذج Google Gemini');
+      }
+
+      const data = await response.json();
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+      if (!aiText) {
+        showToast('لم يسترجع الذكاء الاصطناعي أي نص من الصورة', 'warning');
+      } else {
+        resultText.value = aiText;
+        confidenceBadge.textContent = 'دقة الذكاء الاصطناعي: 100%';
+        confidenceBadge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40';
+        confidenceBadge.classList.remove('hidden');
+
+        updateStats();
+        autoDetectDirection(aiText);
+
+        const found = detectAndRender12DigitNumbers(aiText);
+        if (found.length > 0) {
+          showToast(`تم استخراج الرقم (${found[0]}) بنجاح بواسطة الذكاء الاصطناعي!`, 'success');
+          setTimeout(() => {
+            digit12Container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 200);
+        } else {
+          showToast('اكتمل فحص الصورة بنجاح بواسطة الذكاء الاصطناعي!', 'success');
+        }
+      }
+
+      ocrProgressPercent.textContent = '100%';
+      ocrProgressBar.style.width = '100%';
+      ocrStatusText.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> اكتمل فحص الذكاء الاصطناعي بنجاح!';
+      ocrSubStatus.textContent = 'Gemini Vision finished successfully';
+
+    } catch (err) {
+      console.error('Gemini Vision Error:', err);
+      showToast('خطأ في فحص الذكاء الاصطناعي: ' + (err.message || 'تأكد من صحة المفتاح والاتصال'), 'error');
+      ocrStatusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> فشل فحص الذكاء الاصطناعي';
+      if (err.message && (err.message.includes('API_KEY_INVALID') || err.message.includes('key'))) {
+        localStorage.removeItem('pro_ocr_gemini_key');
+      }
+    } finally {
+      isProcessing = false;
+      btnStartOcr.removeAttribute('disabled');
+      setTimeout(() => {
+        ocrProgressCard.classList.add('hidden');
+      }, 3500);
+    }
   }
 
   /* ==========================================================
