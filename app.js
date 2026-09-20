@@ -1294,9 +1294,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const prompt = 'You are an advanced OCR engine. Extract ALL text from this image accurately. Look specifically for any 12-digit number (such as an ID number, serial number, voucher, or card number). Output the 12-digit number clearly, and then the rest of the text.';
 
-      let response = null;
+      let parsedResult = null;
       let lastError = null;
-      const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      // Verified active vision models
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
       for (const model of modelsToTry) {
         try {
@@ -1313,12 +1314,22 @@ document.addEventListener('DOMContentLoaded', () => {
             })
           });
 
-          if (res.ok) {
-            response = res;
+          const rawText = await res.text();
+          let jsonBody = null;
+          try {
+            jsonBody = JSON.parse(rawText);
+          } catch (jsonErr) {
+            if (rawText.trim().startsWith('<')) {
+              throw new Error('تم استلام صفحة ويب HTML بدلاً من رد JSON (يرجى عمل إعادة تحميل للصفحة Ctrl+F5 لتحديث الكاش أو التحقق من الشبكة).');
+            }
+            throw new Error(`خطأ في صيغة الرد: ${rawText.slice(0, 80)}`);
+          }
+
+          if (res.ok && jsonBody) {
+            parsedResult = jsonBody;
             break;
           } else {
-            const errJson = await res.json().catch(() => ({}));
-            lastError = errJson.error?.message || `HTTP error ${res.status}`;
+            lastError = jsonBody?.error?.message || `HTTP error ${res.status}`;
             if (lastError.includes('no longer available') || lastError.includes('not found') || res.status === 404) {
               continue; // Try next model
             } else {
@@ -1333,11 +1344,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      if (!response) {
+      if (!parsedResult) {
         throw new Error(lastError || 'تعذر الاتصال بنماذج Google Gemini');
       }
 
-      const data = await response.json();
+      const data = parsedResult;
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
 
       if (!aiText) {
@@ -1630,7 +1641,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('ServiceWorker registered successfully'))
+        .then((reg) => {
+          console.log('ServiceWorker registered successfully');
+          reg.update();
+        })
         .catch(err => console.log('ServiceWorker registration error:', err));
     });
   }
