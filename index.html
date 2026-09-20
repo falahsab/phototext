@@ -206,10 +206,16 @@
                 <span>التقاط بالكاميرا</span>
               </button>
 
-              <!-- Sample Demo Image -->
+              <!-- Sample Demo Image (Clean Document) -->
               <button type="button" id="btn-load-sample" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-all flex items-center gap-2">
-                <i class="fa-solid fa-vial"></i>
-                <span>تجربة صورة نموذجية</span>
+                <i class="fa-solid fa-file-lines text-blue-400"></i>
+                <span>مستند نموذجي</span>
+              </button>
+
+              <!-- Sample TV / Receiver Screen (Challenging Low-Res Image) -->
+              <button type="button" id="btn-load-receiver-sample" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all flex items-center gap-2" title="تجربة صورة شاشة رسيفر / كارت (صورة ضعيفة)">
+                <i class="fa-solid fa-satellite-dish text-amber-400"></i>
+                <span>شاشة رسيفر (صورة صعبة)</span>
               </button>
             </div>
 
@@ -242,23 +248,28 @@
               </div>
 
               <!-- Filter Toggles -->
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button type="button" id="filter-grayscale" class="filter-btn px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <button type="button" id="filter-adaptive" class="filter-btn px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1 transition-all" title="عزل الظلال والتباين الذكي للصور الضعيفة">
+                  <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                  <span>عزل الظلال</span>
+                </button>
+
+                <button type="button" id="filter-sharpen" class="filter-btn px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1 transition-all" title="توضيح الحواف الباهتة والمضغوطة">
+                  <i class="fa-solid fa-bolt text-cyan-400"></i>
+                  <span>توضيح الحواف</span>
+                </button>
+
+                <button type="button" id="filter-grayscale" class="filter-btn px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1 transition-all">
                   <i class="fa-solid fa-circle-half-stroke"></i>
                   <span>رمادي</span>
                 </button>
 
-                <button type="button" id="filter-threshold" class="filter-btn px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
-                  <i class="fa-solid fa-highlighter"></i>
-                  <span>عزل النص</span>
-                </button>
-
-                <button type="button" id="filter-invert" class="filter-btn px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                <button type="button" id="filter-invert" class="filter-btn px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1 transition-all">
                   <i class="fa-solid fa-circle-notch"></i>
                   <span>عكس الألوان</span>
                 </button>
 
-                <button type="button" id="filter-rotate" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                <button type="button" id="filter-rotate" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-1 transition-all">
                   <i class="fa-solid fa-rotate-right"></i>
                   <span>تدوير 90°</span>
                 </button>
@@ -272,10 +283,53 @@
         <!-- Card: OCR Engine Settings & Run Button -->
         <div class="bg-slate-850/80 rounded-2xl border border-slate-800 p-5 shadow-xl backdrop-blur-sm space-y-4">
           
-          <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-sliders text-blue-400"></i>
-            <span>2. إعدادات محرك الاستخراج (OCR)</span>
-          </h2>
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-blue-400"></i>
+              <span>2. إعدادات محرك الاستخراج (OCR)</span>
+            </h2>
+            <button type="button" id="btn-manage-api-key" class="text-[11px] text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1.5 underline cursor-pointer">
+              <i class="fa-solid fa-key text-[10px]"></i>
+              <span id="api-key-status-text">إعداد مفتاح Gemini</span>
+            </button>
+          </div>
+
+          <!-- Default Engine Choice: Gemini AI vs Local Tesseract -->
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-microchip text-amber-400"></i>
+                <span>محرك الفحص الافتراضي (يبدأ تلقائياً عند استيراد الصورة):</span>
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <!-- Gemini AI Engine Option -->
+              <label id="label-engine-gemini" class="cursor-pointer relative flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-purple-500/80 bg-purple-500/10 hover:bg-purple-500/15 transition-all select-none shadow-sm">
+                <input type="radio" name="default-engine" id="engine-gemini" value="gemini" checked class="mt-0.5 w-4 h-4 text-purple-600 focus:ring-purple-500 bg-slate-900 border-slate-700 cursor-pointer">
+                <div class="flex flex-col">
+                  <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5 flex-wrap">
+                    <i class="fa-solid fa-brain text-amber-300"></i>
+                    <span>الذكاء الاصطناعي (Gemini Vision)</span>
+                    <span class="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 border border-amber-500/30">موصى به</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 mt-0.5">أعلى دقة لشاشات التلفزيون والرسيفر والصور المعقدة</span>
+                </div>
+              </label>
+
+              <!-- Local Tesseract Engine Option -->
+              <label id="label-engine-local" class="cursor-pointer relative flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition-all select-none">
+                <input type="radio" name="default-engine" id="engine-local" value="local" class="mt-0.5 w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-900 border-slate-700 cursor-pointer">
+                <div class="flex flex-col">
+                  <span class="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>المحرك المحلي (Tesseract)</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 mt-0.5">فوري، غير محدود ويعمل بدون إنترنت داخل المتصفح</span>
+                </div>
+              </label>
+            </div>
+          </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <!-- Language Select -->
@@ -310,11 +364,19 @@
             </div>
           </div>
 
-          <!-- Primary Start Button -->
-          <button type="button" id="btn-start-ocr" disabled class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2.5">
-            <i class="fa-solid fa-bolt"></i>
-            <span>ابدأ استخراج النص الآن</span>
+          <!-- Primary Start Button (Dynamically labeled based on default engine) -->
+          <button type="button" id="btn-start-ocr" disabled class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm sm:text-base shadow-lg shadow-purple-600/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2.5 cursor-pointer">
+            <i class="fa-solid fa-brain text-amber-300"></i>
+            <span id="btn-start-ocr-text">فحص الصورة بالذكاء الاصطناعي (Gemini Vision)</span>
           </button>
+
+          <!-- Secondary/Alternative Engine Button -->
+          <div class="pt-1">
+            <button type="button" id="btn-gemini-vision" class="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <i class="fa-solid fa-bolt text-blue-400"></i>
+              <span id="btn-alt-engine-text">أو الفحص بالمحرك المحلي (Tesseract.js)</span>
+            </button>
+          </div>
 
           <!-- Progress Bar & Status (Visible during processing) -->
           <div id="ocr-progress-card" class="hidden p-4 rounded-xl bg-slate-900/90 border border-blue-500/30 space-y-3">
@@ -502,6 +564,42 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Gemini Key Modal (للفحص الخارق بالذكاء الاصطناعي للصور المعقدة جداً) -->
+  <div id="gemini-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-purple-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-brain text-purple-400"></i>
+          <span>الفحص الفائق بالذكاء الاصطناعي (Gemini Vision)</span>
+        </h3>
+        <button id="btn-close-gemini-modal" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <p>
+          يستخدم هذا الفحص نموذج <strong>Google Gemini Flash</strong> لقراءة الصور المشوشة جداً، شديدة الضعف، أو المكتوبة بخط اليد بدقة 100%.
+        </p>
+        <div class="space-y-1.5 pt-1">
+          <label for="gemini-api-key" class="font-semibold text-slate-200 block">أدخل مفتاح Google Gemini API المجاني الخاص بك:</label>
+          <input type="password" id="gemini-api-key" placeholder="AIzaSy..." class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+          <p class="text-[11px] text-slate-400">
+            يمكنك استخراج مفتاح مجاناً بنقرة واحدة من <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-purple-400 underline font-semibold">Google AI Studio</a>. يُحفظ المفتاح محلياً في متصفحك فقط بأمان تام.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+        <button type="button" id="btn-cancel-gemini" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors">إلغاء</button>
+        <button type="button" id="btn-submit-gemini" class="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-bolt"></i>
+          <span>بدء الفحص الخارق</span>
+        </button>
+      </div>
     </div>
   </div>
 
